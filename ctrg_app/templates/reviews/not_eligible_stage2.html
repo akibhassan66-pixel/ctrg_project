@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Not Eligible</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-[#CFDAF0] dark:bg-[#0f1729] font-[Inter,sans-serif] transition-colors duration-300">
+  <main class="mx-auto flex min-h-screen max-w-3xl items-center px-5 py-10">
+    <section class="w-full rounded-[2rem] border border-rose-200 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-rose-900/40 dark:bg-slate-900/85">
+      <h1 class="text-3xl font-extrabold text-rose-600 dark:text-rose-400">Not Eligible</h1>
+      <p class="mt-4 text-sm text-slate-600 dark:text-slate-300">You are not eligible to submit Stage 2 decision for this proposal.</p>
+      <a href="{% url 'reviewer_dashboard' %}" class="mt-6 inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500">Back to Reviewer Dashboard</a>
+    </section>
+  </main>
+</body>
+</html>

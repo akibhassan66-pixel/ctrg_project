@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ctrg-grant-system
+    runtime: python
+    plan: free
+    buildCommand: bash build.sh
+    startCommand: gunicorn ctrg_project.wsgi:application --bind 0.0.0.0:$PORT --workers $WEB_CONCURRENCY --log-file -
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DEBUG
+        value: "False"
+      - key: SERVE_MEDIA
+        value: "True"
+      - key: WEB_CONCURRENCY
+        value: "2"

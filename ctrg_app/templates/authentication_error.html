@@ -1,0 +1,56 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTRG Authentication Error</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(180deg, #f7f9ff 0%, #e3ebfb 100%);
+            color: #10214d;
+        }
+        .panel {
+            width: min(420px, 100%);
+            background: #fff;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 18px 45px rgba(16, 33, 77, 0.14);
+            text-align: center;
+        }
+        img {
+            width: 132px;
+            height: auto;
+            margin-bottom: 1rem;
+        }
+        h2 {
+            margin: 0 0 0.75rem;
+        }
+        p {
+            margin: 0;
+            color: #55627f;
+            line-height: 1.5;
+        }
+        a {
+            color: #123b8d;
+            font-weight: 700;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <img src="{% static 'images/ctrg_logo_light_transparent.png' %}" alt="CTRG logo">
+        <h2>Login Failed</h2>
+        <p>There was an error logging in with Google. <a href="/accounts/login/">Try again</a></p>
+    </div>
+</body>
+</html>

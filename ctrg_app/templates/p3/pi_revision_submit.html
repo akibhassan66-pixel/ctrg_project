@@ -1,0 +1,152 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Revision</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    keyframes: {
+                        fadeUp: {
+                            '0%': { opacity: 0, transform: 'translateY(20px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        }
+                    },
+                    animation: { 'fade-up': 'fadeUp 0.45s ease both' }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>[style*="animation-delay"] { opacity: 0; }</style>
+</head>
+<body class="min-h-screen bg-[#CFDAF0] dark:bg-[#0f1729] font-[Inter,sans-serif] transition-colors duration-300">
+    <button id="themeToggle" class="fixed right-5 top-5 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:bg-slate-100 dark:border-slate-700/60 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:bg-slate-800">
+        <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+        <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z"/></svg>
+    </button>
+    <main class="mx-auto max-w-6xl px-5 py-10">
+        <div class="grid gap-6 lg:grid-cols-[0.9fr_1.4fr]">
+            <section class="animate-fade-up rounded-[2rem] bg-gradient-to-br from-slate-900 via-purple-950 to-slate-800 p-8 text-white shadow-2xl shadow-slate-900/20" style="animation-delay:0ms">
+                <p class="text-xs font-bold uppercase tracking-[0.32em] text-purple-200/80">Revision Request</p>
+                <h1 class="mt-4 text-3xl font-extrabold leading-tight sm:text-4xl">Submit an updated version.</h1>
+                <p class="mt-4 text-sm leading-7 text-slate-300 sm:text-base"><b>{{ proposal.title }}</b> ({{ proposal.status }})</p>
+
+                {% if proposal.revision_deadline %}
+                <div class="mt-6 rounded-2xl border border-red-400/30 bg-red-900/20 p-5">
+                    <p class="text-xs font-bold uppercase tracking-widest text-red-300 mb-3">Revision Deadline</p>
+                    <div id="countdown" class="grid grid-cols-4 gap-2 text-center">
+                        <div class="rounded-xl bg-white/10 p-3">
+                            <span id="cd-days" class="block text-2xl font-extrabold text-white">--</span>
+                            <span class="text-xs text-slate-400 uppercase tracking-wider">Days</span>
+                        </div>
+                        <div class="rounded-xl bg-white/10 p-3">
+                            <span id="cd-hours" class="block text-2xl font-extrabold text-white">--</span>
+                            <span class="text-xs text-slate-400 uppercase tracking-wider">Hours</span>
+                        </div>
+                        <div class="rounded-xl bg-white/10 p-3">
+                            <span id="cd-mins" class="block text-2xl font-extrabold text-white">--</span>
+                            <span class="text-xs text-slate-400 uppercase tracking-wider">Mins</span>
+                        </div>
+                        <div class="rounded-xl bg-white/10 p-3">
+                            <span id="cd-secs" class="block text-2xl font-extrabold text-white">--</span>
+                            <span class="text-xs text-slate-400 uppercase tracking-wider">Secs</span>
+                        </div>
+                    </div>
+                    <p id="cd-expired" class="hidden mt-3 text-sm font-bold text-red-400 text-center">Deadline has passed — submission no longer accepted.</p>
+                    <p class="mt-3 text-xs text-slate-400 text-center">Deadline: {{ proposal.revision_deadline|date:"M d, Y H:i:s" }}</p>
+                    <script>
+                        (function () {
+                            var deadline = new Date("{{ proposal.revision_deadline|date:'Y-m-d' }}T{{ proposal.revision_deadline|date:'H:i:s' }}");
+                            function pad(n) { return String(n).padStart(2, '0'); }
+                            function tick() {
+                                var now = new Date();
+                                var diff = Math.floor((deadline - now) / 1000);
+                                if (diff <= 0) {
+                                    document.getElementById('cd-days').textContent = '00';
+                                    document.getElementById('cd-hours').textContent = '00';
+                                    document.getElementById('cd-mins').textContent = '00';
+                                    document.getElementById('cd-secs').textContent = '00';
+                                    document.getElementById('cd-expired').classList.remove('hidden');
+                                    return;
+                                }
+                                var d = Math.floor(diff / 86400);
+                                var h = Math.floor((diff % 86400) / 3600);
+                                var m = Math.floor((diff % 3600) / 60);
+                                var s = diff % 60;
+                                document.getElementById('cd-days').textContent = pad(d);
+                                document.getElementById('cd-hours').textContent = pad(h);
+                                document.getElementById('cd-mins').textContent = pad(m);
+                                document.getElementById('cd-secs').textContent = pad(s);
+                                setTimeout(tick, 1000);
+                            }
+                            tick();
+                        })();
+                    </script>
+                </div>
+                {% endif %}
+
+                <div class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5">
+                    <h2 class="text-sm font-bold uppercase tracking-[0.24em] text-slate-400">Stage 1 Comments</h2>
+                    <ul class="mt-4 space-y-3 text-sm text-slate-200">
+                        {% for r in stage1_reviews %}
+                            <li class="rounded-xl border border-white/10 bg-white/5 p-3">{{ r.narrative_comments }}</li>
+                        {% empty %}
+                            <li class="rounded-xl border border-white/10 bg-white/5 p-3">No Stage 1 reviews found.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+
+            <section class="animate-fade-up rounded-[2rem] border border-white/60 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:80ms">
+                <p class="text-sm font-semibold uppercase tracking-[0.28em] text-purple-600 dark:text-purple-400">Revision Upload</p>
+                <h2 class="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">Submit Revision</h2>
+                {% if proposal.revision_deadline %}
+                    <div id="deadline-expired-banner" class="hidden mt-6 rounded-2xl bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 px-5 py-4 text-sm font-semibold text-red-700 dark:text-red-300">
+                        Revision deadline has passed. Submission is no longer accepted.
+                    </div>
+                {% endif %}
+                <form method="post" enctype="multipart/form-data" class="mt-8 space-y-4" id="revision-form">
+                    {% csrf_token %}
+                    <div class="text-slate-900 dark:text-slate-100"> {{ form.as_p }} </div>
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <button type="submit" id="submit-btn" class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-500">Upload Revision</button>
+                        <a href="{% url 'p3_pi_proposal_detail' proposal.proposal_id %}" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Back</a>
+                    </div>
+                </form>
+                {% if proposal.revision_deadline %}
+                <script>
+                    (function () {
+                        var deadline = new Date("{{ proposal.revision_deadline|date:'Y-m-d' }}T{{ proposal.revision_deadline|date:'H:i:s' }}");
+                        function checkExpiry() {
+                            if (new Date() >= deadline) {
+                                document.getElementById('submit-btn').disabled = true;
+                                document.getElementById('submit-btn').classList.add('opacity-50', 'cursor-not-allowed');
+                                document.getElementById('submit-btn').classList.remove('hover:bg-purple-700');
+                                document.getElementById('deadline-expired-banner').classList.remove('hidden');
+                            }
+                        }
+                        checkExpiry();
+                        setInterval(checkExpiry, 1000);
+                    })();
+                </script>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+    <script>
+        const html = document.documentElement, btn = document.getElementById('themeToggle'), moonIcon = document.getElementById('moonIcon'), sunIcon = document.getElementById('sunIcon');
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) { html.classList.add('dark'); moonIcon.classList.add('hidden'); sunIcon.classList.remove('hidden'); }
+        btn.addEventListener('click', () => { const isDark = html.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); moonIcon.classList.toggle('hidden', isDark); sunIcon.classList.toggle('hidden', !isDark); });
+        document.querySelectorAll('.animate-fade-up').forEach((el) => { el.style.opacity = ''; });
+    </script>
+</body>
+</html>

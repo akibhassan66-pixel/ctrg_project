@@ -1,0 +1,572 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRC Chair – CTRG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] },
+                    keyframes: {
+                        fadeUp: {
+                            '0%':   { opacity: 0, transform: 'translateY(20px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        },
+                        slideIn: {
+                            '0%':   { opacity: 0, transform: 'translateX(-16px)' },
+                            '100%': { opacity: 1, transform: 'translateX(0)' },
+                        }
+                    },
+                    animation: {
+                        'fade-up':  'fadeUp 0.45s ease both',
+                        'slide-in': 'slideIn 0.35s ease both',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Desktop sidebar ──────────────────────────────── */
+        #sidebar {
+            width: 280px;
+            min-height: calc(100vh - 64px);
+            transition: width 0.3s cubic-bezier(.4,0,.2,1);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        #sidebar.collapsed { width: 72px; }
+
+        /* Hide labels/text when collapsed (desktop) */
+        #sidebar.collapsed .nav-label,
+        #sidebar.collapsed .sidebar-header-text,
+        #sidebar.collapsed .export-card { display: none; }
+
+        /* Icon-only centering when collapsed */
+        #sidebar.collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+        #sidebar.collapsed .nav-icon-wrap { margin: 0 auto; }
+
+        /* Toggle chevron rotation */
+        #sidebarToggle { transition: transform 0.3s ease; }
+        #sidebar.collapsed #sidebarToggle { transform: rotate(180deg); }
+
+        /* Tooltip on icon-only mode */
+        #sidebar.collapsed .nav-item { position: relative; }
+        #sidebar.collapsed .nav-item::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: calc(100% + 12px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1e293b;
+            color: #f1f5f9;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 8px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            z-index: 200;
+        }
+        #sidebar.collapsed .nav-item:hover::after { opacity: 1; }
+
+        /* ── Mobile: hide desktop sidebar entirely ─────────── */
+        @media (max-width: 1023px) {
+            #sidebar { display: none; }
+        }
+
+        /* ── Mobile drawer (slide-over) ────────────────────── */
+        #mobileDrawer {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: none;
+        }
+        #mobileDrawer.open { display: flex; }
+        #drawerOverlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(2px);
+        }
+        #drawerPanel {
+            position: relative;
+            z-index: 10;
+            width: 280px;
+            height: 100%;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+            overflow-y: auto;
+        }
+        #mobileDrawer.open #drawerPanel { transform: translateX(0); }
+
+        /* ── General ──────────────────────────────────────── */
+        .card-hover { transition: transform .22s ease, box-shadow .22s ease; }
+        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(0,0,0,0.11); }
+        .dark .card-hover:hover { box-shadow: 0 16px 40px rgba(0,0,0,0.38); }
+        .action-btn { transition: opacity .18s, transform .15s; }
+        .action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .action-btn:active { transform: scale(0.97); }
+        .ctrg-logo-text { fill: #1B2B6B; }
+        html.dark .ctrg-logo-text { fill: #e2e8f0; }
+    </style>
+</head>
+
+<body class="min-h-screen bg-[#CFDAF0] dark:bg-[#0f1729] font-sans transition-colors duration-300">
+
+<!-- ─── NAVBAR ──────────────────────────────────────────────────────────────── -->
+<header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700/60 sticky top-0 z-50 h-16">
+    <div class="h-full px-5 flex items-center gap-4">
+
+        <!-- Mobile hamburger (hidden on desktop) -->
+        <button id="mobileMenuBtn"
+                class="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                aria-label="Open menu">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+        </button>
+
+        <!-- Logo -->
+        <a href="{% url 'dashboard' %}" class="flex items-center select-none shrink-0" title="CTRG Home">
+            <img src="{% static 'images/ctrg_logo_light_transparent.png' %}" alt="CTRG" class="h-12 w-auto">
+        </a>
+
+        <span class="text-slate-300 dark:text-slate-600 text-xl mx-1">|</span>
+        <span class="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-semibold rounded-full">
+            SRC Chair
+        </span>
+
+        <div class="flex-1"></div>
+
+        <!-- User -->
+        <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A8.966 8.966 0 0112 15c2.21 0 4.232.797 5.879 2.109M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span class="hidden sm:inline font-medium">{{ user.username }}</span>
+        </div>
+
+        <!-- Dark-mode toggle -->
+        <button id="themeToggle"
+            class="w-10 h-10 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Toggle dark mode">
+            <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
+            </svg>
+            <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z"/>
+            </svg>
+        </button>
+
+        <!-- Logout -->
+        <a href="{% url 'logout' %}"
+           class="flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>
+            </svg>
+            <span class="hidden sm:inline">Logout</span>
+        </a>
+    </div>
+</header>
+
+<!-- ─── MOBILE DRAWER ─────────────────────────────────────────────────────────── -->
+<div id="mobileDrawer">
+    <!-- Backdrop -->
+    <div id="drawerOverlay"></div>
+
+    <!-- Panel -->
+    <div id="drawerPanel" class="bg-white dark:bg-slate-900 py-6 px-4 flex flex-col">
+
+        <!-- Drawer header -->
+        <div class="flex items-center justify-between mb-6 px-1">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Quick Actions</span>
+            <button id="drawerCloseBtn"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <nav class="flex flex-col gap-2">
+            <a href="{% url 'create_cycle' %}"
+               class="flex items-center gap-3 bg-gray-900 dark:bg-indigo-600 text-white px-3 py-3.5 rounded-xl font-semibold text-sm shadow-sm">
+                <div class="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </div>
+                New Grant Cycle
+            </a>
+            <a href="{% url 'create_reviewer' %}"
+               class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3M13 7a4 4 0 11-8 0 4 4 0 018 0zM6 20v-1a4 4 0 014-4h1"/>
+                    </svg>
+                </div>
+                Add Reviewer
+            </a>
+            <a href="{% url 'reviewer_list' %}"
+               class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-1a4 4 0 00-5.197-3.787M9 20H4v-1a4 4 0 015.197-3.787M15 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </div>
+                <span class="flex-1">Reviewer List</span>
+                <span class="text-xs font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">{{ reviewer_count }}</span>
+            </a>
+            <a href="{% url 'proposal_list' %}"
+               class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+                    </svg>
+                </div>
+                All Proposals
+            </a>
+            <a href="{% url 'cycle_list' %}"
+               class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582M20 20v-5h-.581M4.582 9A8 8 0 0120 15M19.418 15A8 8 0 014 9"/>
+                    </svg>
+                </div>
+                All Grant Cycles
+            </a>
+            <div class="my-2 border-t border-slate-100 dark:border-slate-700/60"></div>
+            <a href="{% url 'export_reviewers_excel_one_row' %}"
+               class="flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-3.5 rounded-xl font-semibold text-sm shadow-sm">
+                <div class="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+                    </svg>
+                </div>
+                Export Reviewers (.xlsx)
+            </a>
+        </nav>
+    </div>
+</div>
+
+<div class="flex" style="min-height: calc(100vh - 64px);">
+
+    <!-- ══ LEFT SIDEBAR ══════════════════════════════════════════════════════════ -->
+    <aside id="sidebar"
+           class="bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 flex flex-col shrink-0 py-6 px-4">
+
+        <!-- Sidebar header -->
+        <div class="flex items-center justify-between mb-6 px-1">
+            <span class="sidebar-header-text text-xs font-bold text-slate-400 uppercase tracking-widest">Quick Actions</span>
+            <button id="sidebarToggle"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Nav items -->
+        <nav class="flex flex-col gap-2 flex-1">
+
+            <!-- New Grant Cycle — primary CTA -->
+            <a href="{% url 'create_cycle' %}" data-tooltip="New Grant Cycle"
+               class="nav-item action-btn flex items-center gap-3 bg-gray-900 dark:bg-indigo-600 text-white px-3 py-3.5 rounded-xl font-semibold text-sm shadow-sm">
+                <div class="nav-icon-wrap w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </div>
+                <span class="nav-label">New Grant Cycle</span>
+            </a>
+
+            <!-- Add Reviewer -->
+            <a href="{% url 'create_reviewer' %}" data-tooltip="Add Reviewer"
+               class="nav-item action-btn flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="nav-icon-wrap w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3M13 7a4 4 0 11-8 0 4 4 0 018 0zM6 20v-1a4 4 0 014-4h1"/>
+                    </svg>
+                </div>
+                <span class="nav-label">Add Reviewer</span>
+            </a>
+
+            <!-- Reviewer List -->
+            <a href="{% url 'reviewer_list' %}" data-tooltip="Reviewer List"
+               class="nav-item action-btn flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="nav-icon-wrap w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-1a4 4 0 00-5.197-3.787M9 20H4v-1a4 4 0 015.197-3.787M15 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </div>
+                <span class="nav-label flex-1">Reviewer List</span>
+                <span class="nav-label text-xs font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">{{ reviewer_count }}</span>
+            </a>
+
+            <!-- All Proposals -->
+            <a href="{% url 'proposal_list' %}" data-tooltip="All Proposals"
+               class="nav-item action-btn flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="nav-icon-wrap w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+                    </svg>
+                </div>
+                <span class="nav-label">All Proposals</span>
+            </a>
+
+            <!-- All Grant Cycles -->
+            <a href="{% url 'cycle_list' %}" data-tooltip="All Grant Cycles"
+               class="nav-item action-btn flex items-center gap-3 bg-slate-50 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-3 py-3.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700">
+                <div class="nav-icon-wrap w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582M20 20v-5h-.581M4.582 9A8 8 0 0120 15M19.418 15A8 8 0 014 9"/>
+                    </svg>
+                </div>
+                <span class="nav-label">All Grant Cycles</span>
+            </a>
+
+            <!-- Divider -->
+            <div class="my-2 border-t border-slate-100 dark:border-slate-700/60"></div>
+
+            <!-- Export Excel -->
+            <a href="{% url 'export_reviewers_excel_one_row' %}" data-tooltip="Export Excel"
+               class="nav-item action-btn flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-3.5 rounded-xl font-semibold text-sm shadow-sm">
+                <div class="nav-icon-wrap w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+                    </svg>
+                </div>
+                <span class="nav-label">Export Reviewers</span>
+            </a>
+        </nav>
+
+        <!-- Export hint (full only) -->
+        <p class="export-card mt-4 text-xs text-slate-400 dark:text-slate-500 text-center px-2">
+            Downloads reviewer &amp; assignment data as .xlsx
+        </p>
+    </aside>
+
+    <!-- ══ MAIN CONTENT ═══════════════════════════════════════════════════════════ -->
+    <main class="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+
+        <!-- Page heading -->
+        <div class="mb-6 sm:mb-8 animate-fade-up">
+            <p class="text-xs font-bold uppercase tracking-[0.28em] text-blue-600 dark:text-blue-400">{{ chair_school.school_name }} School</p>
+            <h1 class="text-2xl sm:text-4xl font-extrabold text-gray-900 dark:text-white">{{ chair_school.school_name }} SRC Chair Dashboard</h1>
+            <p class="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1.5">
+                Welcome back, <strong class="text-gray-700 dark:text-slate-300">{{ user.username }}</strong>. Manage cycles, reviewers, and proposals for {{ chair_school.school_name }} only.
+            </p>
+        </div>
+
+        <!-- ── Stats row ─────────────────────────────────────────────────────── -->
+        <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5 mb-6 sm:mb-10">
+
+            <!-- Active reviewers -->
+            <div class="card-hover animate-fade-up bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5" style="animation-delay:60ms">
+                <div class="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-1a4 4 0 00-5.197-3.787M9 20H4v-1a4 4 0 015.197-3.787M15 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">{{ reviewer_count }}</p>
+                    <p class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-0.5 truncate">Active Reviewers</p>
+                </div>
+            </div>
+
+            <!-- Grant cycles -->
+            <div class="card-hover animate-fade-up bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5" style="animation-delay:110ms">
+                <div class="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582M20 20v-5h-.581M4.582 9A8 8 0 0120 15M19.418 15A8 8 0 014 9"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">{{ cycles|length }}</p>
+                    <p class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-0.5 truncate">{{ chair_school.school_name }} Grant Cycles</p>
+                </div>
+            </div>
+
+            <!-- Quick-link: All proposals -->
+            <a href="{% url 'proposal_list' %}"
+               class="card-hover animate-fade-up bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5 group" style="animation-delay:160ms">
+                <div class="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 sm:w-7 sm:h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-sm sm:text-base font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">All Proposals</p>
+                    <p class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-0.5">View &amp; manage →</p>
+                </div>
+            </a>
+
+            <!-- Quick-link: All reviewers -->
+            <a href="{% url 'reviewer_list' %}"
+               class="card-hover animate-fade-up bg-white dark:bg-slate-800 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5 group" style="animation-delay:210ms">
+                <div class="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 sm:w-7 sm:h-7 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-sm sm:text-base font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">All Reviewers</p>
+                    <p class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-0.5">View &amp; manage →</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- ── Grant Cycles table ─────────────────────────────────────────────── -->
+        <div class="flex items-center justify-between mb-4 sm:mb-5 animate-fade-up" style="animation-delay:260ms">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{{ chair_school.school_name }} Grant Cycles</h2>
+            <a href="{% url 'cycle_list' %}"
+               class="text-base text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                View all →
+            </a>
+        </div>
+
+        <div class="animate-fade-up bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm" style="animation-delay:300ms">
+            {% if cycles %}
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-slate-100 dark:border-slate-700">
+                            <th class="text-left text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-6 py-4">Cycle Name</th>
+                            <th class="text-left text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-6 py-4">Year</th>
+                            <th class="text-left text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-6 py-4">Stage 1 Ends</th>
+                            <th class="text-left text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-6 py-4">Threshold</th>
+                            <th class="px-6 py-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for cycle in cycles %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
+                            <td class="px-6 py-5 text-base font-semibold text-gray-900 dark:text-white">{{ cycle.cycle_name }}</td>
+                            <td class="px-6 py-5 text-base text-slate-500 dark:text-slate-400">{{ cycle.year }}</td>
+                            <td class="px-6 py-5">
+                                {% if cycle.stage1_end_date %}
+                                    <span class="inline-flex items-center gap-2 text-base text-slate-600 dark:text-slate-300">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                        {{ cycle.stage1_end_date|date:"M d, Y" }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-slate-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-5">
+                                {% if cycle.acceptance_threshold %}
+                                    <span class="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-bold rounded-full">
+                                        {{ cycle.acceptance_threshold }}%
+                                    </span>
+                                {% else %}
+                                    <span class="text-slate-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-5">
+                                <a href="{% url 'proposals_by_cycle' cycle.cycle_id %}"
+                                   class="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
+                                    View proposals →
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="flex flex-col items-center py-16 text-center px-8">
+                <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582M20 20v-5h-.581M4.582 9A8 8 0 0120 15M19.418 15A8 8 0 014 9"/>
+                    </svg>
+                </div>
+                <p class="text-base font-semibold text-gray-900 dark:text-white mb-1">No {{ chair_school.school_name }} grant cycles yet</p>
+                <p class="text-sm text-slate-400 mb-5">Create the first cycle for {{ chair_school.school_name }} to start managing proposals.</p>
+                <a href="{% url 'create_cycle' %}"
+                   class="px-5 py-2.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl text-sm font-bold hover:opacity-90 transition-all">
+                    + Create Cycle
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
+    </main>
+</div>
+
+<script>
+    // ── Dark-mode toggle ────────────────────────────────────────────────────
+    const html     = document.documentElement;
+    const btn      = document.getElementById('themeToggle');
+    const moonIcon = document.getElementById('moonIcon');
+    const sunIcon  = document.getElementById('sunIcon');
+
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        html.classList.add('dark');
+        moonIcon.classList.add('hidden');
+        sunIcon.classList.remove('hidden');
+    }
+
+    btn.addEventListener('click', () => {
+        const isDark = html.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        moonIcon.classList.toggle('hidden', isDark);
+        sunIcon.classList.toggle('hidden', !isDark);
+    });
+
+    // ── Sidebar collapse toggle ─────────────────────────────────────────────
+    const sidebar       = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+
+    const sidebarState = localStorage.getItem('sidebarCollapsed');
+    if (sidebarState === 'true') sidebar.classList.add('collapsed');
+
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+    });
+
+    // ── Mobile drawer ───────────────────────────────────────────────────────
+    const mobileDrawer   = document.getElementById('mobileDrawer');
+    const drawerOverlay  = document.getElementById('drawerOverlay');
+    const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+    const mobileMenuBtn  = document.getElementById('mobileMenuBtn');
+
+    function openDrawer() {
+        mobileDrawer.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        // Trigger the slide-in transition on next frame
+        requestAnimationFrame(() => {
+            document.getElementById('drawerPanel').style.transform = 'translateX(0)';
+        });
+    }
+
+    function closeDrawer() {
+        mobileDrawer.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    mobileMenuBtn.addEventListener('click', openDrawer);
+    drawerCloseBtn.addEventListener('click', closeDrawer);
+    drawerOverlay.addEventListener('click', closeDrawer);
+
+    // Close drawer on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDrawer();
+    });
+
+</script>
+</body>
+</html>

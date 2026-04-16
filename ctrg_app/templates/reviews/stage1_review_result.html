@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage 1 Review Result</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-[#CFDAF0] font-[Inter,sans-serif]">
+  <main class="mx-auto max-w-5xl px-5 py-10 space-y-6">
+    <section class="rounded-[2rem] border border-white/60 bg-white/90 p-8 shadow-xl shadow-slate-900/5">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.28em] text-amber-600">Stage 1 Result</p>
+          <h1 class="mt-2 text-3xl font-extrabold text-slate-900">{{ assignment.proposal.title }}</h1>
+          <div class="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <p><b>Reviewer:</b> {{ assignment.reviewer.user.username }}</p>
+            <p><b>Assignment ID:</b> {{ assignment.assignment_id }}</p>
+            <p><b>Total Percentage:</b> {{ review.total_percentage }}</p>
+            <p><b>Submitted At:</b> {{ review.submitted_at }}</p>
+          </div>
+        </div>
+        <a href="{% if back_url_name == 'reviewer_dashboard' %}{% url 'reviewer_dashboard' %}{% else %}{% url 'p3_chair_report_proposal' assignment.proposal.proposal_id %}{% endif %}" class="inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600">Back</a>
+      </div>
+    </section>
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Originality</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_originality }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Clarity</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_clarity }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Literature Review</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_lit_review }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Methodology</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_methodology }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Impact</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_impact }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Publication</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_publication }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Budget</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_budget }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Timeframe</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.score_timeframe }}</p></div>
+    </section>
+    <section class="rounded-[2rem] bg-white p-6 shadow">
+      <h2 class="text-xl font-bold text-slate-900">Narrative Comments</h2>
+      <p class="mt-4 text-sm leading-7 text-slate-600">{{ review.narrative_comments|default:"No comments provided." }}</p>
+    </section>
+  </main>
+</body>
+</html>

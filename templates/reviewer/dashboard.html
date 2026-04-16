@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><title>Create Grant Cycle</title></head>
+<body>
+    <h1>Setup New Grant Cycle</h1>
+    <form method="post">
+        {% csrf_token %}
+        <div style="max-width: 400px;">
+            {{ form.as_p }}
+        </div>
+        <button type="submit">Initialize Cycle</button>
+    </form>
+    <br>
+    <a href="{% url 'chair_dashboard' %}">Cancel and Return</a>
+</body>
+</html>

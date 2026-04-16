@@ -1,0 +1,16 @@
+.claude/
+.idea/
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+media/
+staticfiles/
+logs/
+mysql_backup.sql
+postgres_import.sql
+ctrg_mysql_to_postgres.load
+ctrg_changed_files_handoff.zip
+ctrg_changed_files_handoff_structured.zip
+supabase_seed.sql

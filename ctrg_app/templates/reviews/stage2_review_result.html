@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage 2 Review Result</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-[#CFDAF0] font-[Inter,sans-serif]">
+  <main class="mx-auto max-w-5xl px-5 py-10 space-y-6">
+    <section class="rounded-[2rem] border border-white/60 bg-white/90 p-8 shadow-xl shadow-slate-900/5">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.28em] text-indigo-600">Stage 2 Result</p>
+          <h1 class="mt-2 text-3xl font-extrabold text-slate-900">{{ assignment.proposal.title }}</h1>
+          <div class="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <p><b>Reviewer:</b> {{ assignment.reviewer.user.username }}</p>
+            <p><b>Assignment ID:</b> {{ assignment.assignment_id }}</p>
+            <p><b>Recommendation:</b> {{ review.recommendation }}</p>
+            <p><b>Revised Score:</b> {{ review.revised_score }}</p>
+          </div>
+        </div>
+        <a href="{% if back_url_name == 'reviewer_dashboard' %}{% url 'reviewer_dashboard' %}{% else %}{% url 'p3_chair_report_proposal' assignment.proposal.proposal_id %}{% endif %}" class="inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-600">Back</a>
+      </div>
+    </section>
+    <section class="grid gap-4 sm:grid-cols-3">
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Concerns Addressed</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.concerns_addressed }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Recommendation</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.recommendation }}</p></div>
+      <div class="rounded-2xl bg-white p-5 shadow"><p class="text-xs uppercase tracking-[0.2em] text-slate-400">Revised Score</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ review.revised_score }}</p></div>
+    </section>
+    <section class="rounded-[2rem] bg-white p-6 shadow">
+      <h2 class="text-xl font-bold text-slate-900">Comments</h2>
+      <p class="mt-4 text-sm leading-7 text-slate-600">{{ review.comments|default:"No comments provided." }}</p>
+    </section>
+  </main>
+</body>
+</html>

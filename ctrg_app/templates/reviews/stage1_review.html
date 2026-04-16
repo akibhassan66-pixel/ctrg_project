@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stage 1 Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    keyframes: {
+                        fadeUp: {
+                            '0%': { opacity: 0, transform: 'translateY(20px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        }
+                    },
+                    animation: { 'fade-up': 'fadeUp 0.45s ease both' }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>[style*="animation-delay"] { opacity: 0; }</style>
+</head>
+<body class="min-h-screen bg-[#CFDAF0] dark:bg-[#0f1729] font-[Inter,sans-serif] transition-colors duration-300">
+    <button id="themeToggle" class="fixed right-5 top-5 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/70 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:bg-slate-100 dark:border-slate-700/60 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:bg-slate-800">
+        <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+        <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z"/></svg>
+    </button>
+
+    <main class="mx-auto max-w-7xl px-5 py-10 space-y-6">
+        <section class="animate-fade-up rounded-[2rem] border border-white/60 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:0ms">
+            <h1 class="text-3xl font-extrabold text-slate-900 dark:text-white">Stage 1 Review</h1>
+            <p class="mt-3 text-sm text-slate-600 dark:text-slate-300"><b>Proposal:</b> {{ assignment.proposal.title }}</p>
+        </section>
+
+        <section class="animate-fade-up rounded-[2rem] border border-white/60 bg-white/90 p-6 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:80ms">
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">Proposal Documents</h2>
+            <div class="mt-4 space-y-5">
+                {% for d in docs %}
+                <div class="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/30">
+                    <p class="font-semibold text-slate-900 dark:text-white">{{ d.document_type }} — version {{ d.version }}</p>
+                    <a href="/media/{{ d.file_path }}" download class="mt-2 inline-block text-sm text-blue-600 dark:text-blue-400">Download</a>
+                    {% if d.file_path|lower|slice:"-4:" == ".pdf" %}
+                    <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+                        <object data="/media/{{ d.file_path }}" type="application/pdf" width="100%" height="520px">
+                            <p class="p-4 text-sm"><a href="/media/{{ d.file_path }}">Click here to open it.</a></p>
+                        </object>
+                    </div>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-sm text-slate-500 dark:text-slate-400">No documents uploaded yet.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="animate-fade-up rounded-[2rem] border border-white/60 bg-white/90 p-6 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:140ms">
+            <form method="POST" class="grid gap-5 sm:grid-cols-2">
+                {% csrf_token %}
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Originality (0–15)</label><input type="number" name="score_originality" min="0" max="15" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Clarity (0–15)</label><input type="number" name="score_clarity" min="0" max="15" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Literature Review (0–15)</label><input type="number" name="score_lit_review" min="0" max="15" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Methodology (0–15)</label><input type="number" name="score_methodology" min="0" max="15" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Impact (0–15)</label><input type="number" name="score_impact" min="0" max="15" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Publication Potential (0–10)</label><input type="number" name="score_publication" min="0" max="10" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Budget (0–10)</label><input type="number" name="score_budget" min="0" max="10" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Timeframe (0–5)</label><input type="number" name="score_timeframe" min="0" max="5" required class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></div>
+                <div class="sm:col-span-2"><label class="mb-2 block text-sm font-bold text-slate-900 dark:text-slate-100">Comments</label><textarea name="narrative_comments" rows="5" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-100"></textarea></div>
+                <div class="sm:col-span-2 flex flex-wrap gap-3">
+                    <button type="submit" class="inline-flex rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500">Submit Stage 1 Review</button>
+                    <a href="{% url 'reviewer_dashboard' %}" class="inline-flex rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Back to Dashboard</a>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        const html = document.documentElement, btn = document.getElementById('themeToggle'), moonIcon = document.getElementById('moonIcon'), sunIcon = document.getElementById('sunIcon');
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) { html.classList.add('dark'); moonIcon.classList.add('hidden'); sunIcon.classList.remove('hidden'); }
+        btn.addEventListener('click', () => { const isDark = html.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); moonIcon.classList.toggle('hidden', isDark); sunIcon.classList.toggle('hidden', !isDark); });
+        document.querySelectorAll('.animate-fade-up').forEach((el) => { el.style.opacity = ''; });
+    </script>
+</body>
+</html>
