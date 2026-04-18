@@ -106,3 +106,38 @@ Keep `DEFAULT_FROM_EMAIL` aligned with `BREVO_FROM_EMAIL`.
 If `BREVO_API_KEY` is present, reviewer-assignment emails and reminder emails will use the Brevo HTTP API instead of SMTP.
 
 Resend is also supported, but it is usually slower to set up because sending to other recipients requires a verified domain.
+
+## 9. Automatic reminder emails on the live site
+
+The reminder command exists in:
+
+- `python manage.py send_review_reminders --window-minutes 1440`
+
+Your local `run_send_review_reminders.bat` only runs on your own Windows machine.
+
+Because the current deployment uses a free Render web service, Render itself does not run this command on a schedule. The repository now includes a GitHub Actions workflow at:
+
+- `.github/workflows/send-review-reminders.yml`
+
+This workflow runs every hour and can also be triggered manually from the GitHub Actions tab.
+
+To make it work, add these GitHub repository secrets:
+
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `BREVO_API_KEY`
+- `BREVO_FROM_EMAIL`
+- `BREVO_FROM_NAME`
+- `DEFAULT_FROM_EMAIL`
+
+Use the same values that already work in Render.
+
+After adding the secrets, open GitHub:
+
+1. go to `Settings`
+2. open `Secrets and variables` -> `Actions`
+3. add the secrets above
+4. open the `Actions` tab
+5. run `Send Review Reminders` once with `Run workflow`
+
+The workflow will then continue automatically every hour.
