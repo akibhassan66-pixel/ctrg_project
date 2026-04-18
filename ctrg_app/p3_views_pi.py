@@ -193,6 +193,7 @@ from django.http import HttpResponseForbidden
 from django.utils import timezone
 from django.contrib import messages
 from django.db.models import Max
+from .cycle_activation import get_active_cycle_id_for_school, get_latest_active_cycle_entry
 from .models import (
     Proposals, Proposaldocuments, Auditlogs,
     Departments, Grantcycles, Stage1Reviews, Reviewers, SrcChairs
@@ -208,6 +209,22 @@ def is_reviewer(user):
 
 def is_pi(user):
     return not is_chair(user)
+
+
+def get_pi_school(user, proposals=None):
+    department = getattr(user, "department", None)
+    school = getattr(department, "school", None)
+    if school:
+        return school
+
+    proposals = proposals or []
+    for proposal in proposals:
+        proposal_department = getattr(proposal, "department", None)
+        proposal_school = getattr(proposal_department, "school", None)
+        if proposal_school:
+            return proposal_school
+
+    return None
 
 
 def save_uploaded_file(file, proposal_id, subfolder=""):
@@ -234,8 +251,47 @@ def delete_old_file(file_path):
 def pi_dashboard(request):
     if not is_pi(request.user):
         return HttpResponseForbidden("PI access only.")
-    proposals = Proposals.objects.filter(pi_user=request.user).order_by("-proposal_id")
-    return render(request, "p3/pi_dashboard.html", {"proposals": proposals})
+    proposals = list(
+        Proposals.objects
+        .filter(pi_user=request.user)
+        .select_related("cycle", "department__school")
+        .order_by("-proposal_id")
+    )
+    school = get_pi_school(request.user, proposals=proposals)
+    active_cycle = None
+    active_cycle_school = None
+
+    if school and getattr(school, "school_id", None):
+        active_cycle_id = get_active_cycle_id_for_school(school.school_id)
+        if active_cycle_id:
+            active_cycle = (
+                Grantcycles.objects
+                .select_related("school")
+                .filter(cycle_id=active_cycle_id, school=school)
+                .first()
+            )
+            active_cycle_school = getattr(active_cycle, "school", None)
+
+    if not active_cycle:
+        latest_active = get_latest_active_cycle_entry()
+        if latest_active:
+            active_cycle = (
+                Grantcycles.objects
+                .select_related("school")
+                .filter(
+                    cycle_id=latest_active["cycle_id"],
+                    school_id=latest_active["school_id"],
+                )
+                .first()
+            )
+            active_cycle_school = getattr(active_cycle, "school", None)
+
+    return render(request, "p3/pi_dashboard.html", {
+        "proposals": proposals,
+        "pi_school": school,
+        "active_cycle": active_cycle,
+        "active_cycle_school": active_cycle_school,
+    })
 
 
 @login_required
@@ -251,14 +307,17 @@ def pi_submit_proposal(request):
             if school is None:
                 form.add_error("department", "The selected department is not assigned to a school.")
             else:
+                active_cycle_id = get_active_cycle_id_for_school(getattr(school, "school_id", None))
                 cycle = (
                     Grantcycles.objects
-                    .filter(school=school)
-                    .order_by("-cycle_id")
+                    .filter(cycle_id=active_cycle_id, school=school)
                     .first()
                 )
                 if not cycle:
-                    form.add_error(None, f"No grant cycle is available for {school.school_name}.")
+                    form.add_error(
+                        None,
+                        f"No active grant cycle is set for {school.school_name}. Please ask the SRC Chair to choose one.",
+                    )
                 else:
                     proposal = Proposals.objects.create(
                         title=form.cleaned_data["title"],
@@ -403,11 +462,11 @@ def pi_revision_submit(request, proposal_id):
     if proposal.status not in ("REVISION_REQUESTED", "TENTATIVELY_ACCEPTED"):
         return HttpResponseForbidden("Revision not allowed for this proposal status.")
 
-    # Enforce revision deadline (naive local time comparison)
-    import datetime as _dt
+    # Enforce revision deadline in the configured Django timezone.
     def _naive(d):
         return d.replace(tzinfo=None) if d and getattr(d, 'tzinfo', None) else d
-    if proposal.revision_deadline and _dt.datetime.now() > _naive(proposal.revision_deadline):
+    now = timezone.localtime(timezone.now()).replace(tzinfo=None)
+    if proposal.revision_deadline and now > _naive(proposal.revision_deadline):
         messages.error(request, "Revision deadline has passed. Submission is no longer accepted.")
         return redirect("p3_pi_proposal_detail", proposal_id=proposal.proposal_id)
 

@@ -1,15 +1,17 @@
 import datetime as _dt
 
 from django.conf import settings
-from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from ctrg_app.models import Auditlogs, Reviewassignments
+from ctrg_app.email_delivery import send_transactional_email
+from ctrg_app.models import Auditlogs, Reviewassignments, Stage1Reviews, Stage2Reviews
 
 
 REMINDER_ACTION = 'ReviewDeadlineReminderSent'
 REMINDER_ENTITY = 'Reviewers'
+STAGE1_REMINDER_STATUSES = {'UNDER_STAGE_1_REVIEW'}
+STAGE2_REMINDER_STATUSES = {'UNDER_STAGE_2_REVIEW'}
 
 
 def _naive(value):
@@ -28,9 +30,8 @@ def _reminder_key(stage_name, proposal_id, due_dt):
 
 def _is_in_24h_window(due_dt, now, window_minutes):
     delta = due_dt - now
-    lower = _dt.timedelta(hours=24)
-    upper = lower + _dt.timedelta(minutes=window_minutes)
-    return lower <= delta < upper
+    upper = _dt.timedelta(minutes=window_minutes)
+    return _dt.timedelta(0) < delta <= upper
 
 
 def _display_due(value):
@@ -41,7 +42,8 @@ def _display_due(value):
 
 
 def _build_batches(assignments, now=None, window_minutes=1440):
-    now = _naive(now or _dt.datetime.now())
+    default_now = timezone.localtime(timezone.now()).replace(tzinfo=None)
+    now = _naive(now or default_now)
     batches = {}
 
     for assignment in assignments:
@@ -74,18 +76,42 @@ def _build_batches(assignments, now=None, window_minutes=1440):
             },
         )
 
-        for stage_name, due_attr in (('stage1', 'stage1_end_date'), ('stage2', 'stage2_end_date')):
-            due_value = _naive(getattr(cycle, due_attr, None))
-            if due_value and _is_in_24h_window(due_value, now, window_minutes):
-                batch[stage_name].append(
-                    {
-                        'proposal_id': getattr(proposal, 'proposal_id', ''),
-                        'title': getattr(proposal, 'title', '') or '',
-                        'unique_code': getattr(proposal, 'unique_code', '') or '',
-                        'due': due_value,
-                        'reminder_key': _reminder_key(stage_name, getattr(proposal, 'proposal_id', ''), due_value),
-                    }
-                )
+        proposal_status = getattr(proposal, 'status', '')
+        stage1_due = _naive(getattr(cycle, 'stage1_end_date', None))
+        stage2_due = _naive(getattr(cycle, 'stage2_end_date', None))
+
+        if (
+            proposal_status in STAGE1_REMINDER_STATUSES
+            and not getattr(assignment, 'stage1_submitted', False)
+            and stage1_due
+            and _is_in_24h_window(stage1_due, now, window_minutes)
+        ):
+            batch['stage1'].append(
+                {
+                    'proposal_id': getattr(proposal, 'proposal_id', ''),
+                    'title': getattr(proposal, 'title', '') or '',
+                    'unique_code': getattr(proposal, 'unique_code', '') or '',
+                    'due': stage1_due,
+                    'reminder_key': _reminder_key('stage1', getattr(proposal, 'proposal_id', ''), stage1_due),
+                }
+            )
+
+        if (
+            proposal_status in STAGE2_REMINDER_STATUSES
+            and getattr(assignment, 'stage1_submitted', False)
+            and not getattr(assignment, 'stage2_submitted', False)
+            and stage2_due
+            and _is_in_24h_window(stage2_due, now, window_minutes)
+        ):
+            batch['stage2'].append(
+                {
+                    'proposal_id': getattr(proposal, 'proposal_id', ''),
+                    'title': getattr(proposal, 'title', '') or '',
+                    'unique_code': getattr(proposal, 'unique_code', '') or '',
+                    'due': stage2_due,
+                    'reminder_key': _reminder_key('stage2', getattr(proposal, 'proposal_id', ''), stage2_due),
+                }
+            )
 
     for batch in batches.values():
         batch['stage1'].sort(key=lambda item: (item['due'], item['title'], item['proposal_id']))
@@ -102,14 +128,14 @@ def _compose_email(batch, stages_to_send):
         subject_parts.append('Stage 2')
 
     if len(subject_parts) == 1:
-        subject = f"CTRG Reminder: {subject_parts[0]} review deadline due tomorrow"
+        subject = f"CTRG Reminder: {subject_parts[0]} review deadline due within 24 hours"
     else:
-        subject = 'CTRG Reminder: Stage 1 and Stage 2 review deadlines due tomorrow'
+        subject = 'CTRG Reminder: Stage 1 and Stage 2 review deadlines due within 24 hours'
 
     lines = [
         f"Dear {batch['username']},",
         '',
-        'This is a reminder that the following review deadline(s) are due within one day:',
+        'This is a reminder that the following review deadline(s) are due within the next 24 hours:',
         '',
     ]
 
@@ -136,21 +162,21 @@ def _compose_email(batch, stages_to_send):
 
 
 class Command(BaseCommand):
-    help = 'Send reminder emails to reviewers one day before Stage 1/Stage 2 deadlines.'
+    help = 'Send reminder emails to reviewers when Stage 1/Stage 2 deadlines fall within the next look-ahead window.'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--window-minutes',
             type=int,
             default=1440,
-            help='Send reminders when deadline is between +24h and +24h + window (minutes).',
+            help='Look ahead this many minutes for upcoming review deadlines. Default: 1440 (24 hours).',
         )
 
     def handle(self, *args, **options):
         window_minutes = max(1, int(options.get('window_minutes') or 1440))
         now = timezone.localtime(timezone.now()).replace(tzinfo=None)
 
-        assignments = (
+        assignments = list(
             Reviewassignments.objects
             .filter(
                 is_active=True,
@@ -161,9 +187,25 @@ class Command(BaseCommand):
             .select_related('reviewer__user', 'proposal__cycle')
         )
 
+        assignment_ids = [assignment.assignment_id for assignment in assignments]
+        stage1_submitted_ids = set(
+            Stage1Reviews.objects
+            .filter(assignment_id__in=assignment_ids, is_submitted=True)
+            .values_list('assignment_id', flat=True)
+        )
+        stage2_submitted_ids = set(
+            Stage2Reviews.objects
+            .filter(assignment_id__in=assignment_ids)
+            .values_list('assignment_id', flat=True)
+        )
+
+        for assignment in assignments:
+            assignment.stage1_submitted = assignment.assignment_id in stage1_submitted_ids
+            assignment.stage2_submitted = assignment.assignment_id in stage2_submitted_ids
+
         batches = _build_batches(assignments, now=now, window_minutes=window_minutes)
         if not batches:
-            self.stdout.write(self.style.SUCCESS('No review deadline reminders are due in the configured 24-hour window.'))
+            self.stdout.write(self.style.SUCCESS('No review deadline reminders are due in the configured look-ahead window.'))
             return
 
         sent_emails = 0
@@ -198,12 +240,10 @@ class Command(BaseCommand):
 
             try:
                 subject, body = _compose_email(batch, stages_to_send)
-                send_mail(
+                send_transactional_email(
                     subject=subject,
-                    message=body,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[batch['email']],
-                    fail_silently=False,
+                    text_body=body,
                 )
             except Exception as exc:
                 self.stdout.write(self.style.ERROR(

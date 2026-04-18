@@ -49,6 +49,7 @@ urlpatterns = [
     path('chair/reviewers/<int:reviewer_id>/deactivate/', views.deactivate_reviewer, name='deactivate_reviewer'),
     path('chair/create-cycle/', views.create_grant_cycle, name='create_cycle'),
     path('chair/cycles/', views.cycle_list, name='cycle_list'),
+    path('chair/cycles/<int:cycle_id>/activate/', views.set_active_cycle, name='set_active_cycle'),
     path('chair/cycles/<int:cycle_id>/edit/', views.edit_grant_cycle, name='edit_cycle'),
     path('chair/cycles/<int:cycle_id>/proposals/', views.proposals_by_cycle, name='proposals_by_cycle'),
     # Reviewer

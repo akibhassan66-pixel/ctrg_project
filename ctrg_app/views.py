@@ -19,7 +19,134 @@ from .models import Proposaldocuments
 from django.http import HttpResponse
 from django.core.mail import EmailMessage, get_connection, send_mail
 from django.conf import settings
+from django.urls import reverse
+from .email_delivery import EmailDeliveryError, send_transactional_email
+from .cycle_activation import (
+    attach_active_cycle_flags,
+    get_active_cycle_id_for_school,
+    set_active_cycle_for_school,
+)
+from .stage1_scoring import calculate_stage1_total, ensure_stage1_total
 from .p3_services import save_upload_to_media
+
+
+def build_assignment_email(request, reviewer, proposal, assignment):
+    assignment_url = request.build_absolute_uri(
+        reverse("respond_to_assignment", args=[assignment.assignment_id])
+    )
+    subject = "New Proposal Assignment - CTRG System"
+    body = (
+        f"Dear {reviewer.user.username},\n\n"
+        "You have been assigned to review a proposal.\n\n"
+        f"Proposal: {proposal.title}\n\n"
+        "Please log in and respond to this assignment here:\n"
+        f"{assignment_url}\n\n"
+        "CTRG System"
+    )
+    html_body = f"""
+        <p>Dear {reviewer.user.username},</p>
+        <p>You have been assigned to review a proposal.</p>
+        <p><strong>Proposal:</strong> {proposal.title}</p>
+        <p>
+            Please log in and respond to this assignment here:<br>
+            <a href="{assignment_url}">{assignment_url}</a>
+        </p>
+        <p>CTRG System</p>
+    """
+    return subject, body, html_body
+
+
+def send_assignment_email(request, reviewer, proposal, assignment):
+    recipient = (getattr(reviewer.user, "email", "") or "").strip()
+    if not recipient:
+        return False, "Reviewer assignment saved, but the reviewer has no email address."
+
+    subject, body, html_body = build_assignment_email(request, reviewer, proposal, assignment)
+
+    try:
+        result = send_transactional_email(
+            subject=subject,
+            recipient_list=[recipient],
+            text_body=body,
+            html_body=html_body,
+        )
+    except EmailDeliveryError as exc:
+        return False, f"Reviewer assignment saved, but the email could not be sent: {exc}"
+
+    if result.get("local_only"):
+        return (
+            False,
+            "Reviewer assignment email was generated with a local-only email backend. "
+            "Check the runserver terminal or configure a real SMTP/API backend for inbox delivery.",
+        )
+
+    if result.get("transport") == "brevo":
+        return True, f"Reviewer assignment email sent via Brevo to {recipient}."
+
+    if result.get("transport") == "resend":
+        return True, f"Reviewer assignment email sent via Resend to {recipient}."
+
+    return True, f"Reviewer assignment email sent to {recipient}."
+
+
+def local_now_naive():
+    return timezone.localtime(timezone.now()).replace(tzinfo=None)
+
+
+def parse_local_datetime_input(value):
+    """Convert a datetime-local value from the browser into Dhaka-local naive storage."""
+    if not value:
+        return None
+
+    from django.utils.dateparse import parse_datetime
+
+    if len(value) == 16:
+        value = f"{value}:00"
+
+    parsed = parse_datetime(value)
+    if parsed is None:
+        return None
+
+    if not timezone.is_naive(parsed):
+        parsed = timezone.make_naive(parsed, timezone.get_current_timezone())
+
+    return parsed
+
+
+def format_cycle_datetime_local_input(value):
+    """Render stored cycle datetimes back into Asia/Dhaka datetime-local strings."""
+    if not value:
+        return ""
+
+    if timezone.is_naive(value):
+        return value.strftime("%Y-%m-%dT%H:%M")
+
+    return timezone.localtime(value, timezone.get_current_timezone()).strftime("%Y-%m-%dT%H:%M")
+
+
+def format_cycle_datetime_display(value):
+    if not value:
+        return "-"
+
+    if timezone.is_naive(value):
+        return value.strftime("%b %d, %Y %I:%M %p")
+
+    return timezone.localtime(value, timezone.get_current_timezone()).strftime("%b %d, %Y %I:%M %p")
+
+
+def attach_cycle_display_fields(cycle):
+    cycle.stage1_start_date_local = format_cycle_datetime_local_input(cycle.stage1_start_date)
+    cycle.stage1_end_date_local = format_cycle_datetime_local_input(cycle.stage1_end_date)
+    cycle.revision_duration_days_local = format_cycle_datetime_local_input(cycle.revision_duration_days)
+    cycle.stage2_start_date_local = format_cycle_datetime_local_input(cycle.stage2_start_date)
+    cycle.stage2_end_date_local = format_cycle_datetime_local_input(cycle.stage2_end_date)
+
+    cycle.stage1_start_date_display = format_cycle_datetime_display(cycle.stage1_start_date)
+    cycle.stage1_end_date_display = format_cycle_datetime_display(cycle.stage1_end_date)
+    cycle.revision_duration_days_display = format_cycle_datetime_display(cycle.revision_duration_days)
+    cycle.stage2_start_date_display = format_cycle_datetime_display(cycle.stage2_start_date)
+    cycle.stage2_end_date_display = format_cycle_datetime_display(cycle.stage2_end_date)
+    return cycle
 
 
 
@@ -114,10 +241,16 @@ def chair_dashboard(request):
         return redirect('login')
 
     # Context data for the command center
+    cycles = list(
+        Grantcycles.objects.filter(school=chair.school).select_related('school').order_by('-year', '-cycle_id')
+    )
+    active_cycle_id = attach_active_cycle_flags(cycles, chair.school_id)
+
     context = {
-        'cycles': Grantcycles.objects.filter(school=chair.school).select_related('school').order_by('-year', '-cycle_id'),
+        'cycles': cycles,
         'reviewer_count': Reviewers.objects.filter(is_active=True, department__school=chair.school).count(),
         'chair_school': chair.school,
+        'active_cycle_id': active_cycle_id,
         # Add proposal stats here once Person 3 creates the models
     }
     return render(request, 'chair/dashboard.html', context)
@@ -137,12 +270,51 @@ def create_grant_cycle(request):
     if request.method == 'POST':
         form = GrantCycleForm(request.POST)
         if form.is_valid():
-            cycle = form.save(commit=False)
-            cycle.school = chair.school
-            cycle.created_by_src = chair  # Link to the Chair who created it
-            cycle.save()
+            cleaned = form.cleaned_data
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO grantcycles (
+                        created_by_src_id,
+                        cycle_name,
+                        year,
+                        stage1_start_date,
+                        stage1_end_date,
+                        revision_duration_days,
+                        stage2_start_date,
+                        stage2_end_date,
+                        acceptance_threshold,
+                        max_reviewers_per_proposal,
+                        school_id
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [
+                        chair.src_id,
+                        cleaned.get('cycle_name'),
+                        cleaned.get('year'),
+                        cleaned.get('stage1_start_date'),
+                        cleaned.get('stage1_end_date'),
+                        cleaned.get('revision_duration_days'),
+                        cleaned.get('stage2_start_date'),
+                        cleaned.get('stage2_end_date'),
+                        cleaned.get('acceptance_threshold'),
+                        cleaned.get('max_reviewers_per_proposal'),
+                        chair.school_id,
+                    ],
+                )
+            if not get_active_cycle_id_for_school(chair.school_id):
+                newest_cycle = (
+                    Grantcycles.objects
+                    .filter(school=chair.school)
+                    .order_by('-cycle_id')
+                    .first()
+                )
+                if newest_cycle:
+                    set_active_cycle_for_school(chair.school_id, newest_cycle.cycle_id)
             messages.success(request, 'Grant Cycle created successfully!')
             return redirect('chair_dashboard')
+        messages.error(request, 'Please correct the grant cycle form and try again.')
     else:
         form = GrantCycleForm()
     return render(request, 'chair/create_cycle.html', {
@@ -208,33 +380,34 @@ def email_reviewers(request):
         else:
             sent_count = 0
             failed_count = 0
-            connection = get_connection(fail_silently=False)
+            local_only_count = 0
 
-            try:
-                connection.open()
-                for recipient, reviewer_name in recipient_map.items():
-                    body = (
-                        f"Dear {reviewer_name},\n\n"
-                        f"{message_body}\n\n"
-                        "CTRG System"
+            for recipient, reviewer_name in recipient_map.items():
+                body = (
+                    f"Dear {reviewer_name},\n\n"
+                    f"{message_body}\n\n"
+                    "CTRG System"
+                )
+                html_body = f"""
+                    <p>Dear {reviewer_name},</p>
+                    <p>{message_body.replace(chr(10), '<br>')}</p>
+                    <p>CTRG System</p>
+                """
+
+                try:
+                    result = send_transactional_email(
+                        subject=subject,
+                        text_body=body,
+                        recipient_list=[recipient],
+                        html_body=html_body,
                     )
+                except EmailDeliveryError:
+                    failed_count += 1
+                    continue
 
-                    try:
-                        email_message = EmailMessage(
-                            subject=subject,
-                            body=body,
-                            from_email=settings.DEFAULT_FROM_EMAIL,
-                            to=[recipient],
-                            connection=connection,
-                        )
-                        email_message.send()
-                    except Exception:
-                        failed_count += 1
-                        continue
-
-                    sent_count += 1
-            finally:
-                connection.close()
+                sent_count += 1
+                if result.get("local_only"):
+                    local_only_count += 1
 
             if sent_count:
                 messages.success(request, f'Email sent to {sent_count} reviewer(s).')
@@ -244,6 +417,11 @@ def email_reviewers(request):
                 messages.warning(request, f'{missing_email_count} reviewer(s) were skipped because no email address is set.')
             if failed_count:
                 messages.error(request, f'{failed_count} email(s) could not be sent.')
+            if local_only_count:
+                messages.warning(
+                    request,
+                    f'{local_only_count} email(s) used a local-only backend and were not delivered to inboxes.',
+                )
 
     return render(request, 'chair/email_reviewers.html', {
         'chair_school': chair.school,
@@ -349,9 +527,8 @@ def reviewer_dashboard(request):
         Stage2Reviews.objects.filter(assignment_id__in=assignment_ids).values_list("assignment_id", flat=True)
     )
 
-    import datetime as _dt
-    # Use naive local time so comparisons match what the chair entered in the browser
-    now = _dt.datetime.now()
+    # Use naive project-local time so comparisons match the configured Django timezone.
+    now = local_now_naive()
 
     def _naive(d):
         """Strip timezone from a stored datetime so it compares with naive local time."""
@@ -437,13 +614,18 @@ def cycle_list(request):
         chair = SrcChairs.objects.select_related('school').get(user=request.user, is_active=True)
     except SrcChairs.DoesNotExist:
         return redirect('login')
-    cycles = Grantcycles.objects.select_related('school').filter(school=chair.school).order_by('-year', '-cycle_id')
+    cycles = list(
+        Grantcycles.objects.select_related('school').filter(school=chair.school).order_by('-year', '-cycle_id')
+    )
+    active_cycle_id = attach_active_cycle_flags(cycles, chair.school_id)
     # Add proposal count per cycle
     for cycle in cycles:
+        attach_cycle_display_fields(cycle)
         cycle.proposal_count = Proposals.objects.filter(cycle=cycle).count()
     return render(request, 'chair/cycle_list.html', {
         'cycles': cycles,
         'chair_school': chair.school,
+        'active_cycle_id': active_cycle_id,
     })
 
 def proposals_by_cycle(request, cycle_id):
@@ -452,6 +634,7 @@ def proposals_by_cycle(request, cycle_id):
     except SrcChairs.DoesNotExist:
         return redirect('login')
     cycle = get_object_or_404(Grantcycles.objects.select_related('school'), cycle_id=cycle_id, school=chair.school)
+    attach_cycle_display_fields(cycle)
     proposals = Proposals.objects.filter(cycle=cycle).select_related('pi_user', 'department__school').order_by('-proposal_id')
     return render(request, 'proposals/proposals_by_cycle.html', {
         'cycle': cycle,
@@ -515,37 +698,72 @@ def edit_grant_cycle(request, cycle_id):
     schools = Schools.objects.all().order_by('school_name')
 
     if request.method == 'POST':
-        def parse_dt(val):
-            """Parse datetime-local string (YYYY-MM-DDTHH:MM) to datetime or None."""
-            if not val:
-                return None
-            try:
-                from django.utils.dateparse import parse_datetime
-                # datetime-local sends YYYY-MM-DDTHH:MM, parse_datetime needs seconds
-                if len(val) == 16:
-                    val = val + ':00'
-                return parse_datetime(val)
-            except Exception:
-                return None
+        form = GrantCycleForm(request.POST, instance=cycle)
+        if form.is_valid():
+            cleaned = form.cleaned_data
+            school = cleaned.get('school')
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE grantcycles
+                    SET cycle_name = %s,
+                        year = %s,
+                        school_id = %s,
+                        stage1_start_date = %s,
+                        stage1_end_date = %s,
+                        revision_duration_days = %s,
+                        stage2_start_date = %s,
+                        stage2_end_date = %s,
+                        acceptance_threshold = %s,
+                        max_reviewers_per_proposal = %s
+                    WHERE cycle_id = %s
+                    """,
+                    [
+                        cleaned.get('cycle_name'),
+                        cleaned.get('year'),
+                        school.school_id if school else None,
+                        cleaned.get('stage1_start_date'),
+                        cleaned.get('stage1_end_date'),
+                        cleaned.get('revision_duration_days'),
+                        cleaned.get('stage2_start_date'),
+                        cleaned.get('stage2_end_date'),
+                        cleaned.get('acceptance_threshold'),
+                        cleaned.get('max_reviewers_per_proposal'),
+                        cycle_id,
+                    ],
+                )
+            messages.success(request, 'Grant Cycle updated successfully!')
+            return redirect('cycle_list')
+        messages.error(request, 'Please correct the grant cycle form and try again.')
 
-        cycle.cycle_name = request.POST.get('cycle_name')
-        cycle.year = request.POST.get('year')
-        cycle.school_id = request.POST.get('school') or None
-        cycle.stage1_start_date = parse_dt(request.POST.get('stage1_start_date'))
-        cycle.stage1_end_date = parse_dt(request.POST.get('stage1_end_date'))
-        cycle.revision_duration_days = parse_dt(request.POST.get('revision_duration_days'))
-        cycle.stage2_start_date = parse_dt(request.POST.get('stage2_start_date'))
-        cycle.stage2_end_date = parse_dt(request.POST.get('stage2_end_date'))
-        cycle.acceptance_threshold = request.POST.get('acceptance_threshold') or 70
-        cycle.max_reviewers_per_proposal = request.POST.get('max_reviewers_per_proposal') or 2
-        cycle.save()
-        messages.success(request, 'Grant Cycle updated successfully!')
-        return redirect('cycle_list')
-
+    attach_cycle_display_fields(cycle)
     return render(request, 'chair/edit_cycle.html', {
         'cycle': cycle,
         'schools': schools
     })
+
+
+def set_active_cycle(request, cycle_id):
+    if not request.user.is_authenticated:
+        return redirect('login')
+
+    try:
+        chair = SrcChairs.objects.select_related('school').get(user=request.user, is_active=True)
+    except SrcChairs.DoesNotExist:
+        return redirect('login')
+
+    if request.method != 'POST':
+        return redirect('cycle_list')
+
+    cycle = get_object_or_404(
+        Grantcycles.objects.select_related('school'),
+        cycle_id=cycle_id,
+        school=chair.school,
+    )
+
+    set_active_cycle_for_school(chair.school_id, cycle.cycle_id)
+    messages.success(request, f'"{cycle.cycle_name}" is now the active grant cycle for {chair.school.school_name}.')
+    return redirect('cycle_list')
 
 
 #p2
@@ -623,20 +841,35 @@ def assign_reviewer(request, proposal_id):
             messages.error(request, "A reviewer cannot be assigned to review their own PI proposal.")
             return redirect('assign_reviewer', proposal_id=proposal_id)
 
-        current_count = Reviewassignments.objects.filter(proposal_id=proposal_id, is_active=True).count()
-        cycle = proposal.cycle
-        max_reviewers = cycle.max_reviewers_per_proposal if cycle and cycle.max_reviewers_per_proposal else 2
-        if current_count >= max_reviewers:
-            messages.error(request, f"Maximum of {max_reviewers} reviewers already assigned to this proposal.")
-            return redirect('assign_reviewer', proposal_id=proposal_id)
-
         existing_assignment = Reviewassignments.objects.filter(
             proposal_id=proposal_id,
             reviewer_id=reviewer_id
         ).first()
 
         if existing_assignment and existing_assignment.is_active:
-            messages.warning(request, "This reviewer is already assigned to this proposal.")
+            email_sent, email_message = send_assignment_email(
+                request=request,
+                reviewer=reviewer_obj,
+                proposal=proposal,
+                assignment=existing_assignment,
+            )
+            if email_sent:
+                messages.success(
+                    request,
+                    f"This reviewer is already assigned. The assignment email was resent to {reviewer_obj.user.email}.",
+                )
+            else:
+                messages.warning(
+                    request,
+                    f"This reviewer is already assigned. {email_message}",
+                )
+            return redirect('assign_reviewer', proposal_id=proposal_id)
+
+        current_count = Reviewassignments.objects.filter(proposal_id=proposal_id, is_active=True).count()
+        cycle = proposal.cycle
+        max_reviewers = cycle.max_reviewers_per_proposal if cycle and cycle.max_reviewers_per_proposal else 2
+        if current_count >= max_reviewers:
+            messages.error(request, f"Maximum of {max_reviewers} reviewers already assigned to this proposal.")
             return redirect('assign_reviewer', proposal_id=proposal_id)
 
         if existing_assignment:
@@ -661,17 +894,16 @@ def assign_reviewer(request, proposal_id):
             proposal.status = 'UNDER_STAGE_1_REVIEW'
             proposal.save(update_fields=['status'])
 
-        try:
-            from django.core.mail import send_mail
-            send_mail(
-                subject='New Proposal Assignment - CTRG System',
-                message=f'Dear {reviewer_obj.user.username},\n\nYou have been assigned to review a proposal.\n\nProposal: {proposal.title}\n\nPlease login to accept or reject this assignment:\nhttp://127.0.0.1:8000/reviewer/assignments/{assignment.assignment_id}/respond/\n\nCTRG System',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[reviewer_obj.user.email],
-                fail_silently=True,
-            )
-        except Exception:
-            pass
+        email_sent, email_message = send_assignment_email(
+            request=request,
+            reviewer=reviewer_obj,
+            proposal=proposal,
+            assignment=assignment,
+        )
+        if email_sent:
+            messages.success(request, email_message)
+        else:
+            messages.warning(request, email_message)
 
         return redirect('assign_reviewer', proposal_id=proposal_id)
 
@@ -716,8 +948,7 @@ def stage1_review(request, assignment_id):
         return redirect('reviewer_dashboard')
 
     # Enforce Stage 1 time window (compare naive local times)
-    import datetime as _dt
-    now = _dt.datetime.now()
+    now = local_now_naive()
     def _naive(d):
         return d.replace(tzinfo=None) if d and getattr(d, 'tzinfo', None) else d
     cycle = assignment.proposal.cycle
@@ -743,16 +974,34 @@ def stage1_review(request, assignment_id):
     docs = Proposaldocuments.objects.filter(document_id__in=latest_ids)
 
     if request.method == 'POST':
-        score_originality = request.POST.get('score_originality')
-        score_clarity = request.POST.get('score_clarity')
-        score_lit_review = request.POST.get('score_lit_review')
-        score_methodology = request.POST.get('score_methodology')
-        score_impact = request.POST.get('score_impact')
-        score_publication = request.POST.get('score_publication')
-        score_budget = request.POST.get('score_budget')
-        score_timeframe = request.POST.get('score_timeframe')
+        try:
+            score_originality = int(request.POST.get('score_originality'))
+            score_clarity = int(request.POST.get('score_clarity'))
+            score_lit_review = int(request.POST.get('score_lit_review'))
+            score_methodology = int(request.POST.get('score_methodology'))
+            score_impact = int(request.POST.get('score_impact'))
+            score_publication = int(request.POST.get('score_publication'))
+            score_budget = int(request.POST.get('score_budget'))
+            score_timeframe = int(request.POST.get('score_timeframe'))
+        except (TypeError, ValueError):
+            messages.error(request, "All Stage 1 scores must be valid numbers.")
+            return render(request, "reviews/stage1_review.html", {
+                "assignment": assignment,
+                "docs": docs,
+            })
+
         narrative_comments = request.POST.get('narrative_comments')
         submitted_at = timezone.now()
+        total_percentage = calculate_stage1_total(
+            score_originality,
+            score_clarity,
+            score_lit_review,
+            score_methodology,
+            score_impact,
+            score_publication,
+            score_budget,
+            score_timeframe,
+        )
 
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -760,13 +1009,13 @@ def stage1_review(request, assignment_id):
                 (assignment_id,
                  score_originality, score_clarity, score_lit_review, score_methodology,
                  score_impact, score_publication, score_budget, score_timeframe,
-                 narrative_comments, is_submitted, submitted_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 total_percentage, narrative_comments, is_submitted, submitted_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, [
                 assignment.assignment_id,
                 score_originality, score_clarity, score_lit_review, score_methodology,
                 score_impact, score_publication, score_budget, score_timeframe,
-                narrative_comments, True, submitted_at
+                total_percentage, narrative_comments, True, submitted_at
             ])
 
         messages.success(request, "Stage 1 review submitted!")
@@ -791,8 +1040,7 @@ def stage2_review(request, assignment_id):
         return redirect("reviewer_dashboard")
 
     # Enforce Stage 2 time window (compare naive local times)
-    import datetime as _dt
-    now = _dt.datetime.now()
+    now = local_now_naive()
     def _naive(d):
         return d.replace(tzinfo=None) if d and getattr(d, 'tzinfo', None) else d
     cycle = assignment.proposal.cycle
@@ -889,6 +1137,7 @@ def stage1_review_result(request, assignment_id):
         return redirect('dashboard')
 
     review = get_object_or_404(Stage1Reviews, assignment=assignment)
+    ensure_stage1_total(review)
     back_url_name = 'reviewer_dashboard' if reviewer and assignment.reviewer_id == reviewer.reviewer_id else 'p3_chair_report_proposal'
     return render(request, "reviews/stage1_review_result.html", {
         "assignment": assignment,

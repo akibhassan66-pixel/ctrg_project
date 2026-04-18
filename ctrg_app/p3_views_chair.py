@@ -6,7 +6,6 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, HttpResponseForbidden
 from django.utils import timezone
-from django.db.models import Avg
 from django.contrib import messages
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -24,6 +23,7 @@ from .models import (
 )
 
 from .p3_forms import Stage1DecisionForm, FinalDecisionForm
+from .stage1_scoring import ensure_stage1_total
 
 
 def is_chair(user):
@@ -40,12 +40,12 @@ def chair_stage1_decision(request, proposal_id):
 
     proposal = get_object_or_404(Proposals, proposal_id=proposal_id)
 
-    stage1_reviews = Stage1Reviews.objects.filter(
+    stage1_reviews = list(Stage1Reviews.objects.filter(
         assignment__proposal=proposal,
         is_submitted=True
-    )
+    ))
 
-    if stage1_reviews.count() == 0:
+    if len(stage1_reviews) == 0:
         return render(request, "p3/chair_stage1_decision.html", {
             "proposal": proposal,
             "reviews": stage1_reviews,
@@ -53,7 +53,8 @@ def chair_stage1_decision(request, proposal_id):
             "form": None
         })
 
-    avg_score = stage1_reviews.aggregate(avg=Avg("total_percentage"))["avg"]
+    totals = [ensure_stage1_total(review) for review in stage1_reviews]
+    avg_score = (sum(totals) / len(totals)) if totals else None
 
     if request.method == "POST":
         form = Stage1DecisionForm(request.POST)
@@ -184,7 +185,9 @@ def chair_report_proposal(request, proposal_id):
 
     proposal = get_object_or_404(Proposals, proposal_id=proposal_id)
 
-    stage1_reviews = Stage1Reviews.objects.filter(assignment__proposal=proposal)
+    stage1_reviews = list(Stage1Reviews.objects.filter(assignment__proposal=proposal))
+    for review in stage1_reviews:
+        ensure_stage1_total(review)
     stage2_reviews = Stage2Reviews.objects.filter(assignment__proposal=proposal)
     assignments = Reviewassignments.objects.filter(proposal=proposal)
 
@@ -223,9 +226,11 @@ def chair_report_proposal_pdf(request, proposal_id):
         Proposals.objects.select_related("pi_user", "department", "department__school", "cycle"),
         proposal_id=proposal_id
     )
-    stage1_reviews = Stage1Reviews.objects.filter(
+    stage1_reviews = list(Stage1Reviews.objects.filter(
         assignment__proposal=proposal
-    ).select_related("assignment__reviewer__user")
+    ).select_related("assignment__reviewer__user"))
+    for review in stage1_reviews:
+        ensure_stage1_total(review)
     stage2_reviews = Stage2Reviews.objects.filter(
         assignment__proposal=proposal
     ).select_related("assignment__reviewer__user")

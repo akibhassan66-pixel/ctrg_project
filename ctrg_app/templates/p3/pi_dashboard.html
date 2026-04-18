@@ -264,17 +264,18 @@
 
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Upcoming Deadline</p>
 
-                {% with next_cycle=proposals.first.cycle %}
-                {% if next_cycle %}
-                    <p class="text-base font-semibold text-slate-300 mb-2">{{ next_cycle.cycle_name }}</p>
+                {% if active_cycle %}
+                    <p class="text-base font-semibold text-slate-300 mb-1">{{ active_cycle.cycle_name }}</p>
+                    {% if active_cycle_school %}
+                    <p class="text-xs uppercase tracking-[0.22em] text-slate-500 mb-2">{{ active_cycle_school.school_name }}</p>
+                    {% endif %}
                     <p class="text-5xl font-extrabold mb-1" id="daysLeft">—</p>
-                    {% if next_cycle.stage1_end_date %}
-                    <p class="text-sm text-slate-400 mb-7">Closes {{ next_cycle.stage1_end_date|date:"M d, Y" }}</p>
+                    {% if active_cycle.stage1_end_date %}
+                    <p class="text-sm text-slate-400 mb-7">Stage 1 closes {{ active_cycle.stage1_end_date|date:"M d, Y H:i" }}</p>
                     <script>
                         (function(){
-                            var deadline = new Date("{{ next_cycle.stage1_end_date|date:'Y-m-d' }}");
+                            var deadline = new Date("{{ active_cycle.stage1_end_date|date:'Y-m-d' }}T{{ active_cycle.stage1_end_date|date:'H:i:s' }}");
                             var today = new Date();
-                            today.setHours(0,0,0,0);
                             var diff = Math.ceil((deadline - today) / 86400000);
                             var el = document.getElementById('daysLeft');
                             if(diff > 0) el.textContent = diff + ' Day' + (diff !== 1 ? 's' : '');
@@ -285,10 +286,12 @@
                     {% else %}
                     <p class="text-sm text-slate-400 mb-7">No deadline set</p>
                     {% endif %}
+                {% elif pi_school %}
+                    <p class="text-base font-semibold text-slate-300 mb-2">{{ pi_school.school_name }}</p>
+                    <p class="text-sm text-slate-400 mb-7">No active grant cycle is set for this school.</p>
                 {% else %}
-                    <p class="text-sm text-slate-400 mb-7">No active grant cycle.</p>
+                    <p class="text-sm text-slate-400 mb-7">No active grant cycle is available because your PI account has no school assigned.</p>
                 {% endif %}
-                {% endwith %}
 
                 <a href="{% url 'p3_pi_submit_proposal' %}"
                    class="block w-full text-center bg-white text-gray-900 font-bold py-3 rounded-xl text-base hover:bg-slate-100 active:scale-95 transition-all">

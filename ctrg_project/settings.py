@@ -122,7 +122,7 @@ if render_hostname:
     csrf_trusted_origins.append(f"https://{render_hostname}")
 CSRF_TRUSTED_ORIGINS = unique_values(csrf_trusted_origins)
 
-X_FRAME_OPTIONS = env("X_FRAME_OPTIONS", "DENY")
+X_FRAME_OPTIONS = env("X_FRAME_OPTIONS", "SAMEORIGIN")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -194,7 +194,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "Europe/London"
+TIME_ZONE = "Asia/Dhaka"
 USE_I18N = True
 USE_TZ = True
 
@@ -227,6 +227,7 @@ EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = env_int("EMAIL_TIMEOUT", 20)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@example.com")
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

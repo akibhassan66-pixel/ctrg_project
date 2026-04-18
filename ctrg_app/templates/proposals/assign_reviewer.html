@@ -33,6 +33,28 @@
     </button>
 
     <main class="mx-auto max-w-6xl px-5 py-10">
+        {% if messages %}
+        <section class="animate-fade-up mb-6 rounded-[1.6rem] border border-slate-200/70 bg-white/90 p-4 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:0ms">
+            <div class="space-y-3">
+                {% for message in messages %}
+                <div class="rounded-2xl border px-4 py-3 text-sm font-medium
+                    {% if message.tags == 'success' %}
+                        border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300
+                    {% elif message.tags == 'warning' %}
+                        border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300
+                    {% elif message.tags == 'error' %}
+                        border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300
+                    {% else %}
+                        border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200
+                    {% endif %}
+                ">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
         <div class="grid gap-6 lg:grid-cols-2">
             <section class="animate-fade-up rounded-[2rem] border border-white/60 bg-white/90 p-6 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:0ms">
                 <h2 class="text-xl font-bold text-slate-900 dark:text-white">Currently Assigned Reviewers</h2>

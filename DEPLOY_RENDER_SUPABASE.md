@@ -89,8 +89,20 @@ For a long-term deployment, move media storage to S3, Cloudinary, or Supabase St
 
 ## 8. Email on Render free
 
-This repo now defaults to the console email backend unless you explicitly provide email settings.
+Do not rely on Gmail SMTP on a free Render web service.
 
-Render free blocks common SMTP ports such as `587`, so Gmail SMTP is not a good production choice here.
+Render announced that free web services block outbound SMTP traffic on ports `25`, `465`, and `587`, so SMTP-based delivery is the wrong transport for this deployment.
 
-Use an API-based provider if you need real email delivery.
+The project now supports API-based email delivery. The fastest path is Brevo because you can verify a sender email address even if you do not own a full sending domain.
+
+Set these Render environment variables:
+
+- `BREVO_API_KEY`
+- `BREVO_FROM_EMAIL`
+- `BREVO_FROM_NAME`
+
+Keep `DEFAULT_FROM_EMAIL` aligned with `BREVO_FROM_EMAIL`.
+
+If `BREVO_API_KEY` is present, reviewer-assignment emails and reminder emails will use the Brevo HTTP API instead of SMTP.
+
+Resend is also supported, but it is usually slower to set up because sending to other recipients requires a verified domain.

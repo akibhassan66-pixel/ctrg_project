@@ -15,6 +15,7 @@ then run this command to see the auto-reject fire.
 import datetime as _dt
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from ctrg_app.models import Proposals, Auditlogs
 
@@ -27,7 +28,7 @@ class Command(BaseCommand):
     help = 'Auto-reject proposals whose revision deadline has expired.'
 
     def handle(self, *args, **options):
-        now = _dt.datetime.now()  # naive local time, matches how deadlines are stored
+        now = timezone.localtime(timezone.now()).replace(tzinfo=None)
 
         all_pending = Proposals.objects.filter(status='REVISION_REQUESTED')
         expired = [p for p in all_pending if p.revision_deadline and _naive(p.revision_deadline) < now]
@@ -44,14 +45,13 @@ class Command(BaseCommand):
             )
             proposal.save(update_fields=['status', 'final_remarks'])
 
-            from django.utils import timezone as tz
             Auditlogs.objects.create(
                 actor_user=None,
                 action_type='RevisionDeadlineExpired',
                 target_entity='Proposals',
                 target_id=proposal.proposal_id,
                 details=f'Auto-rejected at {now}. Deadline was {_naive(proposal.revision_deadline)}.',
-                timestamp=tz.now(),
+                timestamp=timezone.now(),
             )
 
             self.stdout.write(

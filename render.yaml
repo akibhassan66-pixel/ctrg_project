@@ -10,6 +10,12 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_FROM_EMAIL
+        sync: false
+      - key: BREVO_FROM_NAME
+        sync: false
       - key: DEBUG
         value: "False"
       - key: SERVE_MEDIA
