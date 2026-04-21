@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from django.db import connection
@@ -221,7 +223,7 @@ def dashboard(request):
     context = {
         'is_chair': is_chair,
         'is_reviewer': is_reviewer,
-        'is_pi': not is_chair,
+        'is_pi': True,
     }
     return render(request, 'dashboard.html', context)
 
@@ -441,7 +443,21 @@ def reviewer_detail(request, reviewer_id):
         Reviewers.objects.select_related('user', 'department', 'department__school'),
         reviewer_id=reviewer_id
     )
-    return render(request, 'chair/reviewer_detail.html', {'reviewer': reviewer})
+    profile_picture = (getattr(reviewer.user, 'profile_picture', '') or '').strip()
+    profile_picture_url = ''
+    if profile_picture:
+        parsed_profile = urlparse(profile_picture)
+        if parsed_profile.scheme and parsed_profile.netloc:
+            profile_picture_url = profile_picture
+        elif profile_picture.startswith(settings.MEDIA_URL):
+            profile_picture_url = profile_picture
+        else:
+            profile_picture_url = f"{settings.MEDIA_URL}{profile_picture.lstrip('/')}"
+
+    return render(request, 'chair/reviewer_detail.html', {
+        'reviewer': reviewer,
+        'profile_picture_url': profile_picture_url,
+    })
 
 
 def create_reviewer(request):
@@ -772,15 +788,50 @@ def proposal_list(request):
     if not request.user.is_authenticated:
         return redirect('login')
 
-    proposals = Proposals.objects.all()
-    return render(request, 'proposals/proposal_list.html', {'proposals': proposals})
+    try:
+        chair = SrcChairs.objects.select_related('school').get(user=request.user, is_active=True)
+    except SrcChairs.DoesNotExist:
+        return redirect('login')
+
+    cycles = list(
+        Grantcycles.objects
+        .filter(school=chair.school)
+        .order_by('-year', '-cycle_id')
+    )
+
+    selected_cycle_id = request.GET.get('cycle_id')
+
+    proposals = (
+        Proposals.objects
+        .filter(department__school=chair.school)
+        .select_related('department', 'department__school', 'pi_user', 'cycle')
+        .order_by('-proposal_id')
+    )
+
+    if selected_cycle_id:
+        proposals = proposals.filter(cycle_id=selected_cycle_id)
+
+    return render(request, 'proposals/proposal_list.html', {
+        'proposals': proposals,
+        'cycles': cycles,
+        'selected_cycle_id': str(selected_cycle_id) if selected_cycle_id else '',
+    })
 
 
 from .models import SrcChairs
 
 
 def proposal_detail(request, proposal_id):
-    proposal = get_object_or_404(Proposals, proposal_id=proposal_id)
+    try:
+        chair = SrcChairs.objects.select_related('school').get(user=request.user, is_active=True)
+    except SrcChairs.DoesNotExist:
+        return redirect('login')
+
+    proposal = get_object_or_404(
+        Proposals.objects.select_related('department', 'department__school'),
+        proposal_id=proposal_id,
+        department__school=chair.school,
+    )
     docs = Proposaldocuments.objects.filter(proposal=proposal)
 
     # ✅ ADD THIS
@@ -803,12 +854,17 @@ def assign_reviewer(request, proposal_id):
     if not request.user.is_authenticated:
         return redirect('login')
 
-    if not SrcChairs.objects.filter(user=request.user, is_active=True).exists():
+    try:
+        chair = SrcChairs.objects.select_related('school').get(user=request.user, is_active=True)
+    except SrcChairs.DoesNotExist:
         messages.error(request, "Only SRC Chair can assign reviewers.")
-        return redirect('proposal_detail', proposal_id=proposal_id)
+        return redirect('login')
 
     try:
-        proposal = Proposals.objects.select_related('department__school').get(proposal_id=proposal_id)
+        proposal = Proposals.objects.select_related('department__school').get(
+            proposal_id=proposal_id,
+            department__school=chair.school,
+        )
     except Proposals.DoesNotExist:
         messages.error(request, "Proposal not found.")
         return redirect('proposal_list')

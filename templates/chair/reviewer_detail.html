@@ -56,13 +56,15 @@
         <section class="animate-fade-up rounded-[2rem] border border-white/60 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/85" style="animation-delay:0ms">
             <div class="grid gap-8 lg:grid-cols-[280px_1fr] lg:items-start">
                 <div class="flex flex-col items-center rounded-[1.75rem] bg-slate-50 p-6 text-center dark:bg-slate-950/40">
-                    {% if reviewer.user.profile_picture %}
-                        <img src="/media/{{ reviewer.user.profile_picture }}" alt="{{ reviewer.user.username }}" class="h-48 w-48 rounded-3xl object-cover shadow-lg shadow-slate-900/10">
-                    {% else %}
-                        <div class="flex h-48 w-48 items-center justify-center rounded-3xl bg-slate-200 text-5xl font-extrabold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                            {{ reviewer.user.username|first|upper }}
-                        </div>
-                    {% endif %}
+                    <img
+                        src="{{ profile_picture_url }}"
+                        alt="{{ reviewer.user.username }}"
+                        class="h-48 w-48 rounded-3xl object-cover shadow-lg shadow-slate-900/10 {% if not profile_picture_url %}hidden{% endif %}"
+                        onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');"
+                    >
+                    <div class="flex h-48 w-48 items-center justify-center rounded-3xl bg-slate-200 text-5xl font-extrabold text-slate-500 dark:bg-slate-800 dark:text-slate-300 {% if profile_picture_url %}hidden{% endif %}">
+                        {{ reviewer.user.username|first|upper }}
+                    </div>
                     <p class="mt-5 text-xs font-bold uppercase tracking-[0.3em] text-slate-400">Profile Picture</p>
                 </div>
 

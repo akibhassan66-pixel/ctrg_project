@@ -208,7 +208,7 @@ def is_reviewer(user):
     return Reviewers.objects.filter(user=user, is_active=True).exists()
 
 def is_pi(user):
-    return not is_chair(user)
+    return user.is_authenticated
 
 
 def get_pi_school(user, proposals=None):
